@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "google_workspace": {
+      "command": "https://gmailgoogledocmcpserver-production.up.railway.app/sse",
+      "transport": "sse"
+    }
+  }
+}
