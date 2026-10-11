@@ -32,6 +32,12 @@ def run():
     if not clean_reviews:
         console.print("[red]No clean reviews left after scrubbing. Exiting.[/red]")
         return
+
+    # Guard to stay strictly under the 2K token limit
+    if len(clean_reviews) > 8:
+        console.print(f"[yellow]Capping to top 8 reviews to stay strictly within the 2K Groq token limit.[/yellow]")
+        clean_reviews = clean_reviews[:8]
+
         
     # 3. Cluster Themes
     console.print("\n[bold]Step 3: Clustering Themes (via LLM)[/bold]")
@@ -64,10 +70,11 @@ def run():
         
         # Call Gmail MCP
         if PULSE_RECIPIENT_EMAIL:
-            console.print(f"[cyan]Creating Gmail draft for {PULSE_RECIPIENT_EMAIL}...[/cyan]")
-            draft_id = mcp_router.create_gmail_draft(to=PULSE_RECIPIENT_EMAIL, doc_url=doc_url)
-            console.print(f"[bold green]Draft created with ID:[/bold green] {draft_id}")
+            console.print(f"[cyan]Creating Gmail draft/message for {PULSE_RECIPIENT_EMAIL}...[/cyan]")
+            draft_id = mcp_router.create_gmail_draft(to=PULSE_RECIPIENT_EMAIL, doc_url=doc_url, pulse_content=md_output)
+            console.print(f"[bold green]Gmail delivery successful:[/bold green] {draft_id}")
         else:
+
             console.print("[yellow]No PULSE_RECIPIENT_EMAIL configured, skipping Gmail draft.[/yellow]")
             
     except Exception as e:

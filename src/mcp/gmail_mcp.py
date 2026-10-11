@@ -16,20 +16,24 @@ async def _call_mcp_tool(server_url: str, tool_name: str, arguments: dict) -> An
             return result
 
 def create_draft(to: str, subject: str, body: str) -> str:
-    """Creates a Gmail draft and returns its draft ID via MCP."""
+    """Creates a Gmail draft or sends an email via MCP."""
     if not GMAIL_MCP_URL:
         print(f"Would have created a draft to {to} with subject '{subject}'")
         return "local_stub_draft_id"
         
-    try:
-        result = asyncio.run(_call_mcp_tool(
-            GMAIL_MCP_URL, 
-            "create_draft", 
-            {"to": to, "subject": subject, "body": body}
-        ))
-        if result and result.content:
-            return result.content[0].text
-        return str(result)
-    except Exception as e:
-        print(f"Error calling MCP create_draft: {e}")
-        return ""
+    for tool_name in ["create_draft", "send_gmail"]:
+        try:
+            result = asyncio.run(_call_mcp_tool(
+                GMAIL_MCP_URL, 
+                tool_name, 
+                {"to": to, "subject": subject, "body": body}
+            ))
+            if result and not getattr(result, "is_error", False) and result.content:
+                return result.content[0].text
+        except Exception:
+            continue
+
+
+    print(f"Error calling MCP email tools on {GMAIL_MCP_URL}")
+    return ""
+

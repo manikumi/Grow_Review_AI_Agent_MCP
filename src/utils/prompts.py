@@ -35,11 +35,14 @@ Generate exactly 3 actionable product or engineering ideas based on these themes
 Keep each idea concise (under 2 sentences) and highly relevant.
 
 Rules:
-1. Provide ONLY a strictly valid JSON array of strings in the following schema:
-[
-  "Action Idea 1",
-  "Action Idea 2",
-  "Action Idea 3"
-]
+1. Provide ONLY a strictly valid JSON object in the following schema:
+{{
+  "action_ideas": [
+    "Action Idea 1",
+    "Action Idea 2",
+    "Action Idea 3"
+  ]
+}}
 2. DO NOT wrap the output in markdown. ONLY valid JSON.
 """
+

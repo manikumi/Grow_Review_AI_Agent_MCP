@@ -57,20 +57,30 @@ def generate_pulse(clusters: list[ThemeCluster], clean_reviews: list[CleanReview
         response = client.chat.completions.create(
             model=LLM_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
+            temperature=0.7,
+            response_format={"type": "json_object"},
+            max_tokens=500
         )
         
+        if hasattr(response, "usage") and response.usage:
+            print(f"[Groq LLM] Action Ideas tokens: prompt={response.usage.prompt_tokens}, completion={response.usage.completion_tokens}, total={response.usage.total_tokens}")
+
         content = response.choices[0].message.content.strip()
         content = content.removeprefix("```json")
         content = content.removesuffix("```")
             
         try:
             parsed = json.loads(content)
-            if not isinstance(parsed, list):
-                parsed = ["Could not parse action ideas properly."]
-            action_ideas = parsed[:3]
+            if isinstance(parsed, dict):
+                action_ideas = parsed.get("action_ideas", [])
+            elif isinstance(parsed, list):
+                action_ideas = parsed
+            else:
+                action_ideas = ["Could not parse action ideas properly."]
+            action_ideas = action_ideas[:3]
         except json.JSONDecodeError:
             action_ideas = ["Improve app stability.", "Enhance UI/UX.", "Investigate payment failures."]
+
             
         pulse = WeeklyPulse(
             week_ending=date.today(),

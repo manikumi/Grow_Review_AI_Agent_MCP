@@ -7,6 +7,7 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv*/
 venv/
 env/
 ENV/
@@ -14,6 +15,8 @@ ENV/
 # Environment / secrets
 .env
 *.env
+.env.*
+!.env.example
 
 # Distribution / packaging
 dist/
@@ -21,8 +24,9 @@ build/
 *.egg-info/
 *.egg
 
-# Pytest
+# Pytest & Ruff
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 
@@ -36,5 +40,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Local output artifacts
+# Local output & runtime artifacts
 output/
+reviews.jsonl
+*.jsonl
+

@@ -57,8 +57,15 @@ def cluster_themes(reviews: list[CleanReview]) -> list[ThemeCluster]:
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.0
+                temperature=0.0,
+                response_format={"type": "json_object"},
+                max_tokens=800
             )
+
+            
+            if hasattr(response, "usage") and response.usage:
+                print(f"[Groq LLM] Clustering tokens: prompt={response.usage.prompt_tokens}, completion={response.usage.completion_tokens}, total={response.usage.total_tokens}")
+
             
             content = response.choices[0].message.content.strip()
             

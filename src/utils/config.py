@@ -44,5 +44,14 @@ PULSE_RECIPIENT_EMAIL: str = _optional("PULSE_RECIPIENT_EMAIL", "")
 # ── MCP Servers (optional until Phase 5) ─────────────────────────────────────
 GOOGLE_DOCS_MCP_URL: str = _optional("GOOGLE_DOCS_MCP_URL", "")
 GMAIL_MCP_URL: str = _optional("GMAIL_MCP_URL", "")
+GOOGLE_DOC_URL: str = _optional("GOOGLE_DOC_URL", "")
+GOOGLE_DOC_ID: str = _optional("GOOGLE_DOC_ID", "")
+if not GOOGLE_DOC_ID and GOOGLE_DOC_URL:
+    import re
+    match = re.search(r"/document/d/([a-zA-Z0-9-_]+)", GOOGLE_DOC_URL)
+    if match:
+        GOOGLE_DOC_ID = match.group(1)
+
 GOOGLE_CLIENT_ID: str = _optional("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET: str = _optional("GOOGLE_CLIENT_SECRET", "")
+
