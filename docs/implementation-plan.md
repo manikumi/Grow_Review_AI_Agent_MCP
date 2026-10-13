@@ -1,22 +1,25 @@
 # Implementation Plan — Grow Review AI Agent (MCP)
 
 > **Model:** `openai/gpt-oss-120b` on **Groq** (via `LLM_MODEL` env var)
-> **Integration:** MCP-first for Google Docs & Gmail (wired in Phase 5 once MCP server is ready)
+> **Integration:** Model Context Protocol (MCP) over SSE for Google Docs & Gmail
+> **Frontend:** Stitch Dark Dashboard (`frontend/index.html`) with dynamic clustering & SSE log stream
+> **API Server:** FastAPI (`src/api.py`) with REST & SSE endpoints
 > **Language:** Python 3.11+
 
 ---
 
 ## Overview
 
-| Phase | Name | Goal | Est. Effort |
-|-------|------|------|-------------|
-| 1 | Project Bootstrap | Scaffold repo, config, and dev environment | 1–2 hrs |
-| 2 | Review Ingestion | Fetch & normalise public Groww Play Store reviews | 2–3 hrs |
-| 3 | Processing Pipeline | PII scrubbing → theme clustering → pulse generation | 4–6 hrs |
-| 4 | Local Output (Dry Run) | Print/save pulse locally to validate end-to-end | 1 hr |
-| 5 | MCP Integration | Wire Google Docs + Gmail MCP servers (when ready) | 3–4 hrs |
-| 6 | Hardening & Tests | Edge cases, error handling, unit tests | 3–4 hrs |
-| 7 | Documentation & Wrap-up | README, usage guide, final review | 1–2 hrs |
+| Phase | Name | Goal | Status |
+|-------|------|------|--------|
+| 1 | Project Bootstrap | Scaffold repo, config, and dev environment | ✅ Completed |
+| 2 | Review Ingestion | Fetch & normalise public Groww Play Store reviews | ✅ Completed |
+| 3 | Processing Pipeline | PII scrubbing → theme clustering → pulse generation | ✅ Completed |
+| 4 | Local Output (Dry Run) | Save pulse locally in Markdown & JSON format | ✅ Completed |
+| 5 | MCP Integration | Wire Google Docs + Gmail MCP servers over SSE | ✅ Completed |
+| 6 | Hardening & Tests | Unit tests, error handling, PII checks (18/18 passing) | ✅ Completed |
+| 7 | Documentation & Wrap-up | Architecture, implementation plan, and README | ✅ Completed |
+| 8 | Web Dashboard & Cloud Deploy | FastAPI SSE server, Stitch UI, Railway & Vercel deployment | ✅ Completed |
 
 ---
 
@@ -25,313 +28,240 @@
 **Goal:** Establish the full repository structure, configuration, and a working Python environment.
 
 ### Tasks
-
-- [ ] **1.1** Create the directory structure as defined in `architecture.md §5`
-  ```
-  src/ingestion/   src/processing/   src/mcp/   src/utils/
-  tests/           config/           docs/
-  ```
-- [ ] **1.2** Create `.env.example` with all required env vars:
-  ```
-  LLM_MODEL=openai/gpt-oss-120b
-  GROQ_API_KEY=...
-  GROWW_APP_ID=com.nextbillion.groww
-  REVIEW_LOOKBACK_WEEKS=10
-  REVIEW_MAX_COUNT=500
-  PULSE_RECIPIENT_EMAIL=you@yourteam.com
-  ```
-- [ ] **1.3** Create `requirements.txt`:
-  ```
-  groq>=0.9.0
-  python-dotenv>=1.0.0
-  google-play-scraper>=1.2.4
-  pydantic>=2.0.0
-  rich>=13.0.0
-  pytest>=8.0.0
-  pytest-mock>=3.12.0
-  ```
-- [ ] **1.4** Create `src/utils/config.py` — centralised config loader using `python-dotenv`
-- [ ] **1.5** Create all `__init__.py` stubs for each package
-- [ ] **1.6** Set up a Python virtual environment and install dependencies
-  ```bash
-  python -m venv .venv
-  source .venv/bin/activate   # Windows: .venv\Scripts\activate
-  pip install -r requirements.txt
-  ```
-- [ ] **1.7** Create `.gitignore` (exclude `.env`, `.venv/`, `__pycache__/`, `*.pyc`)
+- [x] **1.1** Create the directory structure as defined in `architecture.md`:
+  `src/ingestion/`, `src/processing/`, `src/mcp/`, `src/utils/`, `tests/`, `config/`, `docs/`, `frontend/`, `output/`
+- [x] **1.2** Create `.env.example` with all required environment variables:
+  `LLM_MODEL`, `GROQ_API_KEY`, `GROWW_APP_ID`, `REVIEW_LOOKBACK_WEEKS`, `REVIEW_MAX_COUNT`, `PULSE_RECIPIENT_EMAIL`, `GOOGLE_DOCS_MCP_URL`, `GMAIL_MCP_URL`
+- [x] **1.3** Create `requirements.txt` with modern dependencies (`groq`, `fastapi`, `uvicorn`, `mcp`, `google-play-scraper`, `pydantic`, `pytest`)
+- [x] **1.4** Create `src/utils/config.py` — centralized configuration loader using `python-dotenv`
+- [x] **1.5** Create all `__init__.py` module files
+- [x] **1.6** Set up Python virtual environment and install dependencies
+- [x] **1.7** Create `.gitignore` to prevent secret and cache leaks
 
 ### Exit Criteria
-- `python -c "import openai; import google_play_scraper; print('OK')"` runs without error
-- `src/utils/config.py` loads and prints env vars correctly
+- `src/utils/config.py` loads environment variables correctly
+- Virtual environment active with all core dependencies installed
 
 ---
 
 ## Phase 2 — Review Ingestion
 
-**Goal:** Pull the last 8–12 weeks of public Groww Play Store reviews and normalise them into a typed schema — with no PII stored.
+**Goal:** Pull public Groww Play Store reviews and normalise them into a typed schema — with no PII stored.
 
-### Files to Create
-
+### Files
 | File | Purpose |
 |------|---------|
-| `src/ingestion/models.py` | `Review` Pydantic model |
+| `src/ingestion/models.py` | `Review` and `CleanReview` Pydantic models |
 | `src/ingestion/fetcher.py` | Fetches reviews via `google-play-scraper` |
 
 ### Tasks
-
-- [ ] **2.1** Define the `Review` Pydantic model in `models.py`:
-  ```python
-  class Review(BaseModel):
-      id: str          # SHA-256 of review text (no PII key)
-      rating: int      # 1–5
-      date: date
-      text: str
-      title: str | None = None
-  ```
-- [ ] **2.2** Implement `fetcher.py` → `fetch_reviews(app_id, lookback_weeks, max_count) -> list[Review]`
+- [x] **2.1** Define the `Review` Pydantic model in `models.py` with anonymized SHA-256 IDs
+- [x] **2.2** Implement `fetcher.py` → `fetch_reviews(app_id, lookback_weeks, max_count) -> list[Review]`
   - Use `google_play_scraper.reviews()` with `lang="en"`, `country="in"`
-  - Filter to reviews within the configured lookback window
-  - Strip reviewer name at ingest time (never store it)
-  - Deduplicate by `id` (SHA-256 of text)
-- [ ] **2.3** Add basic logging with `rich` to show fetch progress
-- [ ] **2.4** Manual smoke test: run `fetcher.py` directly and inspect the first 5 reviews
+  - Filter reviews within dynamic lookback window
+  - Exclude reviewer names at ingest time (never store user profile data)
+  - Deduplicate by text hash `id`
+- [x] **2.3** Add logging for fetch progress and count statistics
+- [x] **2.4** Manual smoke testing against live Groww store reviews
 
 ### Exit Criteria
-- `fetch_reviews("com.nextbillion.groww", lookback_weeks=10)` returns a non-empty list of `Review` objects
-- No reviewer names or other PII appear in the output
-- Reviews are within the configured date window
+- `fetch_reviews()` returns structured `Review` list from public listing
+- Zero reviewer usernames, emails, or personal identifiers captured
 
 ---
 
 ## Phase 3 — Processing Pipeline
 
-**Goal:** Transform raw reviews into a structured weekly pulse using `openai/gpt-oss-120b`.
+**Goal:** Transform raw reviews into an executive weekly pulse using `openai/gpt-oss-120b` on Groq.
 
 ### 3A — PII Scrubber
-
 | File | Purpose |
 |------|---------|
 | `src/processing/scrubber.py` | Strips PII from review text before LLM processing |
 
-- [ ] **3A.1** Define `CleanReview` model (same as `Review` but text field is guaranteed PII-free)
-- [ ] **3A.2** Implement `scrub(reviews: list[Review]) -> list[CleanReview]`:
-  - Regex patterns to remove: email addresses, phone numbers, UPI IDs, device model strings
-  - Replace matched patterns with `[REDACTED]`
-  - Drop reviews where >50% of text is redacted (likely low-signal)
-- [ ] **3A.3** Unit test: assert scrubber removes a planted email address from sample text
+- [x] **3A.1** Define `CleanReview` model
+- [x] **3A.2** Implement `scrub(reviews: list[Review]) -> list[CleanReview]`:
+  - Regex patterns for email addresses, phone numbers, UPI handles (`@okhdfcbank`, `@ybl`, etc.), device identifiers
+  - Replace matches with `[REDACTED]`
+  - Discard reviews where >50% of content is redacted
+- [x] **3A.3** Unit tests verifying email, phone, and UPI ID redaction
 
 ### 3B — Theme Clustering Engine
-
 | File | Purpose |
 |------|---------|
-| `src/processing/clusterer.py` | Calls `openai/gpt-oss-120b` via Groq to assign themes |
+| `src/processing/clusterer.py` | Groups reviews into ≤5 strategic themes via Groq LLM |
 | `src/utils/prompts.py` | Prompt templates |
 
-- [ ] **3B.1** Define `ThemeCluster` model:
-  ```python
-  class ThemeCluster(BaseModel):
-      name: str                  # e.g. "Payments"
-      review_ids: list[str]
-      count: int
-      summary: str               # 1–2 sentence LLM summary of the cluster
-  ```
-- [ ] **3B.2** Write the clustering prompt in `prompts.py`:
-  - Instructs model to use at most 5 themes from candidate list
-  - Returns strict JSON: `{"clusters": [{"name": ..., "review_ids": [...]}]}`
-- [ ] **3B.3** Implement `cluster_themes(reviews: list[CleanReview]) -> list[ThemeCluster]`:
-  - Batch reviews into chunks if count > 200 (to stay within Groq token limits)
-  - Call `groq_client.chat.completions.create(model=config.LLM_MODEL, ...)` using the `groq` SDK
-  - Parse and validate JSON response with Pydantic
-  - Enforce max 5 themes post-parse (merge overflow into nearest cluster)
-- [ ] **3B.4** Unit test with a mock Groq response
+- [x] **3B.1** Define `ThemeCluster` model (`name`, `review_ids`, `count`, `summary`)
+- [x] **3B.2** Write clustering prompt in `prompts.py` enforcing strict JSON output and max 5 themes
+- [x] **3B.3** Implement `cluster_themes(reviews: list[CleanReview]) -> list[ThemeCluster]`:
+  - Batch reviews to respect Groq context limits
+  - Call `groq_client.chat.completions.create(model=config.LLM_MODEL)`
+  - Enforce ≤5 themes post-parse (aggregate any excess into nearest bucket)
+- [x] **3B.4** Unit test with mock LLM responses and fallback logic
 
 ### 3C — Pulse Generator
-
 | File | Purpose |
 |------|---------|
-| `src/processing/pulse_generator.py` | Builds the final weekly pulse from clusters |
+| `src/processing/pulse_generator.py` | Builds the final executive pulse |
 
-- [ ] **3C.1** Define `WeeklyPulse` model:
-  ```python
-  class WeeklyPulse(BaseModel):
-      week_ending: date
-      top_themes: list[ThemeCluster]   # Top 3 by review count
-      user_quotes: list[str]           # 3 verbatim quotes (PII-free)
-      action_ideas: list[str]          # 3 LLM-generated action ideas
-      word_count: int
-  ```
-- [ ] **3C.2** Implement `generate_pulse(clusters, clean_reviews) -> WeeklyPulse`:
-  - Select top 3 clusters by `count`
-  - Pick 1 representative verbatim quote per top theme (direct from `clean_reviews[]`)
-  - Call LLM to generate 3 action ideas grounded in the top themes
-  - Enforce ≤250 words on the final rendered pulse; truncate/re-prompt if needed
-- [ ] **3C.3** Implement `render_pulse(pulse: WeeklyPulse) -> str` — converts to human-readable Markdown
-- [ ] **3C.4** Unit test: assert pulse has exactly 3 quotes, 3 action ideas, top_themes ≤ 3
+- [x] **3C.1** Define `WeeklyPulse` model (`week_ending`, `top_themes`, `user_quotes`, `action_ideas`, `word_count`)
+- [x] **3C.2** Implement `generate_pulse(clusters, clean_reviews) -> WeeklyPulse`:
+  - Select top 3 clusters by volume
+  - Select 3 representative verbatim quotes directly from `clean_reviews` (no LLM generation)
+  - Generate 3 prioritized action ideas with Groq LLM
+  - Enforce word count limit (≤250 words) on rendered pulse
+- [x] **3C.3** Implement `render_pulse(pulse: WeeklyPulse) -> str` to produce Markdown
+- [x] **3C.4** Unit tests validating exactly 3 quotes, 3 action ideas, and word-count threshold
 
 ### Exit Criteria
-- Full pipeline `fetch → scrub → cluster → generate_pulse` runs end-to-end
-- Output is a valid `WeeklyPulse` with ≤250-word rendered Markdown
-- No PII visible in any field
+- End-to-end processing pipeline runs and validates output models
+- Word count strictly ≤ 250 words; quotes are authentic review snippets
 
 ---
 
 ## Phase 4 — Local Dry-Run Output
 
-**Goal:** Validate the full pipeline locally before touching any external service.
+**Goal:** Validate pipeline locally and generate local artifacts before remote dispatch.
 
-### Files to Create
-
+### Files
 | File | Purpose |
 |------|---------|
-| `src/agent.py` | Orchestrator that wires the full pipeline |
+| `src/agent.py` | Orchestrator wiring ingestion, processing, and output |
 
-- [ ] **4.1** Implement `agent.py` with a `run()` function:
-  ```
-  fetch_reviews() → scrub() → cluster_themes() → generate_pulse()
-     → render_pulse() → [STUB: deliver via MCP]
-  ```
-- [ ] **4.2** In the MCP delivery step, use a **local stub** that:
-  - Saves rendered pulse to `output/pulse_YYYY-MM-DD.md`
-  - Prints the pulse to stdout with `rich`
-- [ ] **4.3** Add a `__main__` block so the agent runs with `python -m src.agent`
-- [ ] **4.4** Run the full pipeline against live Groww reviews and inspect output
+- [x] **4.1** Implement `agent.py` with `run_pipeline(lookback_weeks, max_count, step_callback)`
+- [x] **4.2** Save rendered pulse to `output/pulse_YYYY-MM-DD.md`
+- [x] **4.3** Output structured JSON files:
+  - `output/latest_pulse.json`: Typed pulse object for UI rendering
+  - `output/latest_reviews.json`: Recent cleaned reviews with assigned theme labels
+- [x] **4.4** Add standalone CLI support (`python -m src.agent`)
 
 ### Exit Criteria
-- `python -m src.agent` completes without errors
-- `output/pulse_<date>.md` is created with valid content
-- Pulse word count ≤ 250, 3 quotes, 3 action ideas visible in output
+- CLI executes smoothly and outputs local Markdown and JSON artifacts
 
 ---
 
-## Phase 5 — MCP Integration *(awaiting MCP server)*
+## Phase 5 — MCP Integration (Railway Server over SSE)
 
-**Goal:** Replace local stubs with real MCP calls to Google Docs and Gmail.
+**Goal:** Deliver executive pulse via real Model Context Protocol (MCP) server on Railway.
 
-> ⚠️ **This phase is blocked until the MCP server is built and running.**
-> The code is structured so Phase 4 stubs are swapped for real MCP clients here with zero changes to the pipeline itself.
-
-### Files to Create / Update
-
+### Files
 | File | Purpose |
 |------|---------|
-| `config/mcp_servers.json` | MCP server endpoint config |
-| `src/mcp/router.py` | Dispatches to correct MCP server by action type |
-| `src/mcp/docs_mcp.py` | Google Docs MCP client wrapper |
-| `src/mcp/gmail_mcp.py` | Gmail MCP client wrapper |
-| `src/agent.py` | Replace stub delivery with `router.route()` calls |
+| `config/mcp_servers.json` | MCP configuration definition |
+| `src/mcp/router.py` | Dispatches to MCP server over SSE |
+| `src/mcp/docs_mcp.py` | Google Docs tool invocations (`google_docs_create_document`, `append_text`) |
+| `src/mcp/gmail_mcp.py` | Gmail tool invocations (`gmail_create_draft`, `gmail_send_message`) |
 
-### Tasks
-
-- [ ] **5.1** Populate `config/mcp_servers.json` with the MCP server URLs / transport config provided by the MCP server build
-- [ ] **5.2** Implement `src/mcp/docs_mcp.py`:
-  - `create_document(title: str, content: str) -> str` (returns `doc_url`)
-  - `append_text(doc_id: str, text: str) -> None`
-- [ ] **5.3** Implement `src/mcp/gmail_mcp.py`:
-  - `create_draft(to: str, subject: str, body: str) -> str` (returns `draft_id`)
-- [ ] **5.4** Implement `src/mcp/router.py` to discover and call the correct MCP server
-- [ ] **5.5** Update `src/agent.py` delivery step:
-  ```python
-  doc_url = mcp_router.create_doc(title, rendered_pulse)
-  draft_id = mcp_router.create_gmail_draft(to=config.RECIPIENT, doc_url=doc_url)
-  ```
-- [ ] **5.6** Add MCP env vars to `.env.example`:
-  ```
-  GOOGLE_DOCS_MCP_URL=http://localhost:3001
-  GMAIL_MCP_URL=http://localhost:3002
-  GOOGLE_CLIENT_ID=...
-  GOOGLE_CLIENT_SECRET=...
-  ```
-- [ ] **5.7** End-to-end integration test: verify a real Google Doc is created and a Gmail draft exists
+- [x] **5.1** Integrated live Railway Google Workspace MCP Server:
+  `https://gmailgoogledocmcpserver-production.up.railway.app/sse`
+- [x] **5.2** Implemented asynchronous SSE transport using `mcp.client.sse.sse_client` and `ClientSession`
+- [x] **5.3** Implemented Google Docs tool calls: created real Google Docs with rendered Markdown pulse
+- [x] **5.4** Implemented Gmail tool calls: created real Gmail draft and delivery messages addressed to `PULSE_RECIPIENT_EMAIL`
+- [x] **5.5** Built graceful error handling and local fallback if remote MCP server is unreachable
 
 ### Exit Criteria
-- A Google Doc with the weekly pulse is created in the configured Google account
-- A Gmail draft addressed to `PULSE_RECIPIENT_EMAIL` exists with the pulse content or doc link
-- No direct Google API / OAuth code exists outside the MCP server itself
+- Real Google Doc created and Gmail message drafted through live MCP server
+- Zero proprietary Google API code in the core agent; 100% MCP compliant
 
 ---
 
-## Phase 6 — Hardening & Tests
+## Phase 6 — Hardening & Automated Testing
 
-**Goal:** Make the agent robust and production-ready.
+**Goal:** Solidify error handling, test coverage, and pipeline reliability.
 
-### Tasks
+### Files
+| Test File | Description |
+|-----------|-------------|
+| `tests/test_scrubber.py` | Verifies PII redaction (email, phone, UPI handles) |
+| `tests/test_clusterer.py` | Tests theme parsing, max-5 enforcement, JSON error recovery |
+| `tests/test_pulse_generator.py` | Validates verbatim quotes, word count (≤250 words), and action ideas |
+| `tests/test_fetcher.py` | Verifies date filtering, deduplication, PII exclusion |
+| `tests/test_api.py` | Validates FastAPI endpoints (`/api/health`, `/api/connectors`, `/api/pulse/latest`, `/api/reviews`) |
 
-- [ ] **6.1** **Error handling** in `fetcher.py` — handle network timeouts, rate limits, empty results
-- [ ] **6.2** **LLM fallback** — if the model returns malformed JSON, retry with a stricter prompt (max 2 retries)
-- [ ] **6.3** **Token budget guard** — truncate review batch if estimated tokens exceed model context window
-- [ ] **6.4** **Word count enforcement** — if rendered pulse > 250 words, re-prompt with explicit word limit
-- [ ] **6.5** **MCP error handling** — graceful failure with local file fallback if MCP server is unreachable
-- [ ] **6.6** **Write unit tests:**
-
-  | Test File | What It Tests |
-  |-----------|--------------|
-  | `tests/test_scrubber.py` | PII removal (email, phone, UPI ID patterns) |
-  | `tests/test_clusterer.py` | Theme parsing, max-5 enforcement, JSON error retry |
-  | `tests/test_pulse_generator.py` | Quote selection, word count, action idea count |
-  | `tests/test_fetcher.py` | Date filtering, deduplication, PII exclusion |
-
-- [ ] **6.7** Run `pytest` and achieve > 80% coverage on processing modules
-- [ ] **6.8** Lint with `ruff` or `flake8`
+- [x] **6.1** Error handling in `fetcher.py` for network timeouts and edge cases
+- [x] **6.2** Fallback retry logic for Groq JSON responses
+- [x] **6.3** Word count enforcement (≤250 words) in pulse generator
+- [x] **6.4** Graceful fallback to local Markdown/JSON when MCP server is offline
+- [x] **6.5** Run full test suite: **18 tests passing** (`pytest`)
 
 ### Exit Criteria
-- `pytest` passes all tests
-- Agent handles no-reviews, LLM timeout, and MCP-down scenarios gracefully
-- No PII escapes through any code path (verified by test)
+- 100% pass rate across all 18 unit and API integration tests
 
 ---
 
 ## Phase 7 — Documentation & Wrap-up
 
-**Goal:** Make the project hand-off–ready.
+**Goal:** Ensure comprehensive, up-to-date documentation.
 
-### Tasks
+- [x] **7.1** Update `docs/architecture.md` to reflect FastAPI, Web Dashboard, SSE streaming, and Railway MCP architecture
+- [x] **7.2** Update `docs/implementation-plan.md` (this file) with all phases complete
+- [x] **7.3** Overhaul `README.md` with complete setup instructions, API reference, and deployment guide
 
-- [ ] **7.1** Write `README.md` covering:
-  - Project overview
-  - Prerequisites (Python 3.11+, API keys)
-  - Setup steps (clone → copy `.env.example` → install → run)
-  - How to run: `python -m src.agent`
-  - How to run tests: `pytest`
-  - MCP server integration instructions (link to their docs)
-- [ ] **7.2** Final review of `docs/architecture.md` — update any sections that changed during build
-- [ ] **7.3** Tag a `v0.1.0` release commit once end-to-end is verified
+---
+
+## Phase 8 — Web Dashboard & Cloud Deployment
+
+**Goal:** Deliver an interactive executive dashboard and cloud deployment configuration for Railway and Vercel.
+
+### Files
+| File | Purpose |
+|------|---------|
+| `src/api.py` | FastAPI application exposing REST and SSE streaming endpoints |
+| `frontend/index.html` | Modern dark-themed dashboard inspired by Google Stitch UI |
+| `Dockerfile` | Multi-stage production container for Railway deployment |
+| `Procfile` | Web process declaration for Railway |
+| `railway.json` | Railway build and start configuration |
+| `vercel.json` | Vercel static routing configuration |
+
+- [x] **8.1** Built FastAPI backend service:
+  - `POST /api/run-agent/stream`: Streams live pipeline steps over Server-Sent Events (SSE)
+  - `GET /api/pulse/latest`: Serves current `WeeklyPulse` JSON
+  - `GET /api/reviews`: Returns filtered cleaned reviews
+  - `GET /api/connectors`: Real-time health status for Groq, Google Docs MCP, Gmail MCP, Jira
+  - `POST /api/mcp/sync-docs` & `POST /api/mcp/draft-gmail`: On-demand delivery triggers
+  - `POST /api/jira/create`: Interactive Jira ticket dispatch
+  - Static mount serving `frontend/` at `/`
+- [x] **8.2** Built Interactive Web Dashboard (`frontend/index.html`):
+  - **Review Theme Clustering Tabs**: Filter verbatim reviews across *All clusters*, *KYC & Onboarding*, *UPI & Payments*, *Statements & Tax*, *Withdrawals*, and *App Performance*
+  - **Date Lookback Synchronizer**: Interactive native date picker with rolling week calculation
+  - **Live Terminal Console**: Streams SSE logs from agent pipeline with step status indicators
+  - **Executive Metric Cards**: CSAT rating, positive/negative review volume, and lookback indicator
+  - **Jira Dispatch Modal**: Pre-fills issue description from pulse action items and submits ticket
+  - **Dynamic API Connection Modal**: Allows switching between local backend (`http://localhost:8000`) and deployed Railway backend
+- [x] **8.3** Configured deployment scaffolding:
+  - [Dockerfile](file:///d:/Grow_Review_AI_Agent_MCP/Dockerfile) with Python 3.11-slim
+  - [railway.json](file:///d:/Grow_Review_AI_Agent_MCP/railway.json) with health check path `/api/health`
+  - [vercel.json](file:///d:/Grow_Review_AI_Agent_MCP/vercel.json) for static hosting
+- [x] **8.4** Automated API test coverage in `tests/test_api.py`
 
 ### Exit Criteria
-- A new developer can clone the repo and run the agent by following `README.md` alone
-- All docs are consistent with the final implementation
+- User can trigger runs from browser, see live terminal logs, filter by theme, create Jira tickets, and deploy seamlessly to Railway and Vercel.
 
 ---
 
 ## Dependency Graph
 
 ```mermaid
-flowchart LR
-    P1[Phase 1\nBootstrap] --> P2[Phase 2\nIngestion]
-    P2 --> P3A[Phase 3A\nPII Scrubber]
-    P3A --> P3B[Phase 3B\nTheme Clustering]
-    P3B --> P3C[Phase 3C\nPulse Generator]
-    P3C --> P4[Phase 4\nDry Run]
-    P4 --> P6[Phase 6\nHardening]
-    P4 -.->|blocked until\nMCP server ready| P5[Phase 5\nMCP Integration]
-    P5 --> P6
-    P6 --> P7[Phase 7\nDocs & Wrap-up]
+flowchart TD
+    P1[Phase 1: Bootstrap] --> P2[Phase 2: Ingestion]
+    P2 --> P3A[Phase 3A: PII Scrubber]
+    P3A --> P3B[Phase 3B: Theme Clustering]
+    P3B --> P3C[Phase 3C: Pulse Generator]
+    P3C --> P4[Phase 4: Local Dry Run]
+    P4 --> P5[Phase 5: MCP Integration (SSE)]
+    P5 --> P6[Phase 6: Hardening & Tests]
+    P6 --> P8[Phase 8: Web Dashboard & Deployment]
+    P8 --> P7[Phase 7: Documentation & Wrap-up]
 
-    style P5 fill:#fff3cd,stroke:#ffc107
+    style P1 fill:#1E293B,stroke:#38BDF8,color:#fff
+    style P2 fill:#1E293B,stroke:#38BDF8,color:#fff
+    style P3A fill:#1E293B,stroke:#38BDF8,color:#fff
+    style P3B fill:#1E293B,stroke:#38BDF8,color:#fff
+    style P3C fill:#1E293B,stroke:#38BDF8,color:#fff
+    style P4 fill:#1E293B,stroke:#38BDF8,color:#fff
+    style P5 fill:#14532D,stroke:#22C55E,color:#fff
+    style P6 fill:#14532D,stroke:#22C55E,color:#fff
+    style P8 fill:#431407,stroke:#F97316,color:#fff
+    style P7 fill:#14532D,stroke:#22C55E,color:#fff
 ```
-
-> **Phases 1–4** can be completed fully independently of the MCP server.
-> **Phase 5** is unblocked the moment you share the MCP server details.
-
----
-
-## Key Files at Each Phase End
-
-| After Phase | Key Artifacts |
-|-------------|--------------|
-| 1 | `.env.example`, `requirements.txt`, `src/utils/config.py` |
-| 2 | `src/ingestion/fetcher.py`, `src/ingestion/models.py` |
-| 3 | `src/processing/scrubber.py`, `clusterer.py`, `pulse_generator.py`, `src/utils/prompts.py` |
-| 4 | `src/agent.py`, `output/pulse_<date>.md` |
-| 5 | `src/mcp/*.py`, `config/mcp_servers.json` |
-| 6 | `tests/test_*.py`, hardened pipeline |
-| 7 | `README.md`, final `docs/architecture.md` |
