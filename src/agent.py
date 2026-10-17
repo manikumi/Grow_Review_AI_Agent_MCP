@@ -120,7 +120,10 @@ def run_pipeline(
             if PULSE_RECIPIENT_EMAIL:
                 log("deliver", "running", f"Drafting Gmail message to {PULSE_RECIPIENT_EMAIL}...")
                 draft_id = mcp_router.create_gmail_draft(to=PULSE_RECIPIENT_EMAIL, doc_url=doc_url, pulse_content=md_output)
-                log("deliver", "done", f"Gmail draft created: {draft_id}")
+                if draft_id:
+                    log("deliver", "done", f"Gmail message sent/drafted: {draft_id}")
+                else:
+                    log("deliver", "error", "Gmail delivery failed (see MCP server logs; often an expired Google token).")
             else:
                 log("deliver", "done", f"Doc created. No PULSE_RECIPIENT_EMAIL configured, skipping email.")
         except Exception as e:

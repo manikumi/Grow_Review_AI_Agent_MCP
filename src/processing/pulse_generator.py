@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from src.processing.clusterer import ThemeCluster
 from src.processing.scrubber import CleanReview
-from src.utils.config import GROQ_API_KEY, LLM_MODEL
+from src.utils.config import GROQ_API_KEY, LLM_EXTRA_PARAMS, LLM_MODEL
 from src.utils.prompts import ACTION_IDEAS_PROMPT
 
 
@@ -59,13 +59,14 @@ def generate_pulse(clusters: list[ThemeCluster], clean_reviews: list[CleanReview
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             response_format={"type": "json_object"},
-            max_tokens=500
+            max_tokens=1500,
+            **LLM_EXTRA_PARAMS,
         )
         
         if hasattr(response, "usage") and response.usage:
             print(f"[Groq LLM] Action Ideas tokens: prompt={response.usage.prompt_tokens}, completion={response.usage.completion_tokens}, total={response.usage.total_tokens}")
 
-        content = response.choices[0].message.content.strip()
+        content = (response.choices[0].message.content or "").strip()
         content = content.removeprefix("```json")
         content = content.removesuffix("```")
             

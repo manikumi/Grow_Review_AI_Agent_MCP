@@ -32,6 +32,9 @@ def _optional(key: str, default: str = "") -> str:
 # ── LLM (Groq) ────────────────────────────────────────────────────────────────
 LLM_MODEL: str = _optional("LLM_MODEL", "openai/gpt-oss-120b")
 GROQ_API_KEY: str = _require("GROQ_API_KEY")
+# gpt-oss models reason before answering; keep reasoning short so it does not
+# use up max_tokens and leave an empty (invalid) JSON response.
+LLM_EXTRA_PARAMS: dict = {"reasoning_effort": "low"} if "gpt-oss" in LLM_MODEL else {}
 
 # ── Review Ingestion ──────────────────────────────────────────────────────────
 GROWW_APP_ID: str = _optional("GROWW_APP_ID", "com.nextbillion.groww")

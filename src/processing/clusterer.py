@@ -1,10 +1,10 @@
 import json
 
-from groq import Groq
+from groq import APIStatusError, Groq
 from pydantic import BaseModel
 
 from src.processing.scrubber import CleanReview
-from src.utils.config import GROQ_API_KEY, LLM_MODEL
+from src.utils.config import GROQ_API_KEY, LLM_EXTRA_PARAMS, LLM_MODEL
 from src.utils.prompts import CLUSTERING_PROMPT
 
 
@@ -52,22 +52,30 @@ def cluster_themes(reviews: list[CleanReview]) -> list[ThemeCluster]:
             if attempt > 0:
                 prompt += "\n\nCRITICAL: You MUST return strictly valid JSON matching the requested schema. Do not output anything else."
                 
-            response = client.chat.completions.create(
-                model=LLM_MODEL,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.0,
-                response_format={"type": "json_object"},
-                max_tokens=800
-            )
+            try:
+                response = client.chat.completions.create(
+                    model=LLM_MODEL,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.0,
+                    response_format={"type": "json_object"},
+                    max_tokens=2000,
+                    **LLM_EXTRA_PARAMS,
+                )
+            except APIStatusError as e:
+                # e.g. 400 json_validate_failed when the model returns no/invalid JSON
+                if attempt == retries:
+                    raise
+                print(f"[WARN] Groq clustering attempt {attempt + 1} failed: {e}")
+                continue
 
             
             if hasattr(response, "usage") and response.usage:
                 print(f"[Groq LLM] Clustering tokens: prompt={response.usage.prompt_tokens}, completion={response.usage.completion_tokens}, total={response.usage.total_tokens}")
 
             
-            content = response.choices[0].message.content.strip()
+            content = (response.choices[0].message.content or "").strip()
             
             # Strip potential markdown code blocks if the LLM misbehaves
             content = content.removeprefix("```json")
