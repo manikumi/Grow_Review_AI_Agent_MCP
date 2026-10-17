@@ -42,15 +42,26 @@ REVIEW_MAX_COUNT: int = int(_optional("REVIEW_MAX_COUNT", "500"))
 PULSE_RECIPIENT_EMAIL: str = _optional("PULSE_RECIPIENT_EMAIL", "")
 
 # ── MCP Servers (optional until Phase 5) ─────────────────────────────────────
-GOOGLE_DOCS_MCP_URL: str = _optional("GOOGLE_DOCS_MCP_URL", "")
-GMAIL_MCP_URL: str = _optional("GMAIL_MCP_URL", "")
-GOOGLE_DOC_URL: str = _optional("GOOGLE_DOC_URL", "")
-GOOGLE_DOC_ID: str = _optional("GOOGLE_DOC_ID", "")
-if not GOOGLE_DOC_ID and GOOGLE_DOC_URL:
-    import re
-    match = re.search(r"/document/d/([a-zA-Z0-9-_]+)", GOOGLE_DOC_URL)
-    if match:
-        GOOGLE_DOC_ID = match.group(1)
+def _clean(key: str) -> str:
+    """Read an env var and strip whitespace and wrapping quotes (common when pasted into a dashboard)."""
+    return _optional(key, "").strip().strip("'\"").strip()
+
+
+GOOGLE_DOCS_MCP_URL: str = _clean("GOOGLE_DOCS_MCP_URL")
+GMAIL_MCP_URL: str = _clean("GMAIL_MCP_URL")
+GOOGLE_DOC_URL: str = _clean("GOOGLE_DOC_URL")
+GOOGLE_DOC_ID: str = _clean("GOOGLE_DOC_ID")
+
+import re as _re
+
+# Accept a full Doc URL pasted into GOOGLE_DOC_ID, or derive the ID from GOOGLE_DOC_URL
+for _source in (GOOGLE_DOC_ID, GOOGLE_DOC_URL):
+    _match = _re.search(r"/document/d/([a-zA-Z0-9_-]+)", _source)
+    if _match:
+        GOOGLE_DOC_ID = _match.group(1)
+        break
+if GOOGLE_DOC_ID.startswith("your_"):
+    GOOGLE_DOC_ID = ""
 
 GOOGLE_CLIENT_ID: str = _optional("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET: str = _optional("GOOGLE_CLIENT_SECRET", "")

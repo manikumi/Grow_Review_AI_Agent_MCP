@@ -109,9 +109,13 @@ def run_pipeline(
             today_str = date.today().isoformat()
             doc_title = f"Groww Weekly Pulse - {today_str}"
 
-            log("deliver", "running", f"Creating Google Doc '{doc_title}' via MCP...")
-            doc_url = mcp_router.create_doc(title=doc_title, content=md_output)
-            log("deliver", "running", f"Doc created: {doc_url}")
+            log("deliver", "running", f"Appending '{doc_title}' to Google Doc via MCP...")
+            try:
+                doc_url = mcp_router.create_doc(title=doc_title, content=md_output)
+                log("deliver", "running", f"Google Doc updated: {doc_url}")
+            except Exception as doc_err:
+                doc_url = ""
+                log("deliver", "error", f"Google Doc update failed: {doc_err}")
 
             if PULSE_RECIPIENT_EMAIL:
                 log("deliver", "running", f"Drafting Gmail message to {PULSE_RECIPIENT_EMAIL}...")

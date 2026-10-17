@@ -31,6 +31,7 @@ from src.agent import run_pipeline
 from src.mcp.router import mcp_router
 from src.utils.config import (
     GMAIL_MCP_URL,
+    GOOGLE_DOC_ID,
     GOOGLE_DOCS_MCP_URL,
     GROQ_API_KEY,
     GROWW_APP_ID,
@@ -103,6 +104,8 @@ async def health_check():
             "llm_model": LLM_MODEL,
             "groq_configured": bool(GROQ_API_KEY and not GROQ_API_KEY.startswith("your_")),
             "docs_mcp_configured": bool(GOOGLE_DOCS_MCP_URL),
+            "google_doc_configured": bool(GOOGLE_DOC_ID),
+            "google_doc_id_preview": (GOOGLE_DOC_ID[:6] + "...") if GOOGLE_DOC_ID else "",
             "gmail_mcp_configured": bool(GMAIL_MCP_URL),
             "docs_mcp_url": GOOGLE_DOCS_MCP_URL,
             "gmail_mcp_url": GMAIL_MCP_URL,
